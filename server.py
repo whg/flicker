@@ -38,7 +38,7 @@ def single_saved(name):
     data = collection.find_one({'name' : name})
     return json.dumps(data['sequence'])
 
-def all_saved():
+def _all_saved():
     data = collection.find()
     patterns = []
     for p in data:
@@ -46,12 +46,18 @@ def all_saved():
             'name' : p['name'],
             'sequence': p['sequence']
         })
-    return json.dumps(sorted(patterns, key=lambda e: e['name']))
+    return patterns
 
+def all_saved():
+    return json.dumps(sorted(_all_saved(), key=lambda e: e['name']))
+
+@app.route('/showcase/')
 @app.route('/showcase/<name>')
-def showcase(name):
-    return render_template('showcase.html',
-        pair_data=single_saved(name))
+def showcase(name=None):
+    if name:
+        return render_template('showcase.html', pair_data=single_saved(name))
+    else:
+        return render_template('sequences.html', sequences=_all_saved())
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5432)

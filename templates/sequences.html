@@ -1,0 +1,10 @@
+<style media="screen">
+  a {
+    display: block;
+    font-size: 32px;
+  }
+</style>
+
+{% for seq in sequences %}
+  <a href="/showcase/{{ seq.name }}">{{ seq.name }}</a>
+{% endfor %}
