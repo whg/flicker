@@ -149,7 +149,6 @@ function getPair() {
 var pairs = $("#steps tbody tr").map(getPair);
 
 var frameCounter = 0;
-var interval = 500;
 function update() {
 	var currentPair = pairs[frameCounter];
 	var pattern = currentPair.pattern.val();
