@@ -242,9 +242,20 @@ $("button[name=save]").click(function() {
 
 		$.post('/save', { "patterns": JSON.stringify(patterns) } ); //
 
-		$('select').append($('<option>', {
-			text: name,
-			value: JSON.stringify(result)
-		}));
+		var found = false;
+		$("select option").each(function() {
+			if ($(this).text() === name ) {
+				$(this).attr("value", JSON.stringify(result));
+				found = true;
+			} 
+		});
+
+		if (!found) {
+			$('select').append($('<option>', {
+				text: name,
+				value: JSON.stringify(result)
+			}));
+		}
+
 	}
 });

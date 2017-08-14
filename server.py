@@ -17,7 +17,9 @@ def editor():
 @app.route('/save', methods=['POST'])
 def save():
     patterns = json.loads(request.form['patterns'])
-    collection.insert(patterns)
+    print(patterns)
+    collection.update({ 'name': patterns['name'] },
+        { '$set': patterns }, upsert=True)
     return 'ok'
 
 # @app.route('/showcase')
