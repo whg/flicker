@@ -1,3 +1,9 @@
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include <Wire.h>
+
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+
 
 #define SEQUENCE_MAX_LENGTH 20
 #define MAX_SEQUENCES 12
@@ -30,6 +36,12 @@ void display( const State *state ) {
   }
 }
 
+void turnOnAll() {
+  for ( uint8_t i = 0; i < NUM_NEONS; i++ ) {
+     digitalWrite( NEON_PINS[i], 0 );
+  }
+}
+
 /// Given a state find the next state in SEQUENCES
 /// can be passed NULL which starts at returns first state
 State* nextState( const State *state ) {
@@ -47,8 +59,42 @@ State* nextState( const State *state ) {
 }
 
 
-State *currentState;// = &SEQUENCES[0][0];
+State *currentState = NULL;
 float lastChangeTime = 0.f;
+
+#define MODE_PIN 15
+#define SPEED_PIN A0
+
+float speed = 1.0f;
+
+enum mode_t { SEQUENCE, ALL_ON };
+mode_t mode = SEQUENCE;
+
+inline float mapf( float x, float in_min, float in_max, float out_min, float out_max ) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+bool readSpeed() {
+  int val = map( analogRead( SPEED_PIN ), 0, 1 << 10, 0, 50);
+  float newSpeed = mapf( val, 0, 50, 0.1, 5.0 );
+  bool output = speed != newSpeed;
+  speed = newSpeed;
+  return output;
+}
+
+bool readModeButton() {
+  static long lastChange = 0;
+  static uint8_t lastState = 9;
+  long now = millis();
+  uint8_t currentState = digitalRead( MODE_PIN );
+  if ( currentState == LOW && currentState != lastState && now - lastChange > 400 ) {
+    mode = mode == SEQUENCE ? ALL_ON : SEQUENCE;
+    lastChange = now;
+    return true;
+  }
+  lastState = currentState;
+  return false;
+}
 
 void setup() {
 
@@ -58,22 +104,58 @@ void setup() {
     pinMode( NEON_PINS[i], OUTPUT );
   }
 
-  currentState = nextState( currentState );
+  currentState = nextState( NULL );
   display( currentState );
+
+  u8g2.begin();
+  u8g2.setFont( u8g2_font_9x15_mr );
+  
+  PORTB |= (1 << PB0);
+
+  pinMode( SPEED_PIN, INPUT );
+  pinMode( MODE_PIN, INPUT_PULLUP );
 }
 
 void loop() {
 
-  float timeNow = millis() * 0.001f;
-
-  if ( timeNow - lastChangeTime >= currentState->duration ) {
-    currentState = nextState( currentState );
-    display( currentState );
-    lastChangeTime = timeNow;
-  }
+  bool changed = false;
   
-  Serial.print(currentState->pattern);
-  Serial.print(", ");
-  Serial.println(currentState->duration);
-  delay(500);
+  switch ( mode ) {
+    case SEQUENCE:
+    {
+      float timeNow = millis() * 0.001f;
+
+      if ( timeNow - lastChangeTime >= currentState->duration * speed ) {
+        currentState = nextState( currentState );
+        display( currentState );
+        lastChangeTime = timeNow;
+        changed = true;
+      }
+    }
+      break;
+    case ALL_ON:
+    {
+      turnOnAll();
+    }
+      break;
+  }
+
+  if ( changed || readSpeed() || readModeButton() ) {
+    u8g2.clearBuffer();
+    char str[25];
+    sprintf( str, "t-step: %d.%01ds", (int)speed, (int)(speed * 10) % 10 );
+    u8g2.drawStr( 0,20, str );
+
+    sprintf( str, "mode: %s", mode == SEQUENCE ? "sequence" : "all on" );
+    u8g2.drawStr( 0,36, str );
+
+    // _~_
+    uint8_t s = currentState->pattern;
+    sprintf( str, "%c%c%c%c%c%c", s & 0x20 ? '~' : '_', s & 0x10 ? '~' : '_', s & 0x08 ? '~' : '_', s & 0x04 ? '~' : '_', s & 0x02 ? '~' : '_', s & 0x01 ? '~' : '_' );
+    u8g2.drawStr( 0, 52, str );
+
+    u8g2.sendBuffer(); 
+  }
+
+  //delay(50);
 }
