@@ -1,13 +1,19 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <Wire.h>
+#include "RotaryEncoder.h"
+#include <EEPROM.h>
 
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-
+#define SPEED_EEPROM_ADDRESS 0
+#define MODE_EEPROM_ADDRESS 4
 
 #define SEQUENCE_MAX_LENGTH 20
 #define MAX_SEQUENCES 12
 #define END_PATTERN 255
+
+
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+RotaryEncoder encoder( 10, 16 );
 
 #define NUM_NEONS 6
 const uint8_t NEON_PINS[NUM_NEONS] = { 4, 5, 6, 7, 8, 9 };
@@ -75,11 +81,18 @@ inline float mapf( float x, float in_min, float in_max, float out_min, float out
 }
 
 bool readSpeed() {
-  int val = map( analogRead( SPEED_PIN ), 0, 1 << 10, 0, 50);
-  float newSpeed = mapf( val, 0, 50, 0.1, 5.0 );
-  bool output = speed != newSpeed;
-  speed = newSpeed;
-  return output;
+  
+  encoder.tick();
+  static int oldValue = 0;
+  int value = encoder.getPosition();
+  int diff = value - oldValue;
+  oldValue = value;
+  float newSpeed = constrain( speed + diff * 0.05f, 0.1f, 5.0f );
+  if ( newSpeed != speed ) {
+    EEPROM.put( SPEED_EEPROM_ADDRESS, newSpeed );
+    speed = newSpeed;
+  }
+  return diff != 0;
 }
 
 bool readModeButton() {
@@ -90,10 +103,29 @@ bool readModeButton() {
   if ( currentState == LOW && currentState != lastState && now - lastChange > 400 ) {
     mode = mode == SEQUENCE ? ALL_ON : SEQUENCE;
     lastChange = now;
+    EEPROM.put( MODE_EEPROM_ADDRESS, mode );
     return true;
   }
   lastState = currentState;
   return false;
+}
+
+void drawDisplay() {
+  u8g2.clearBuffer();
+  char str[25];
+
+  sprintf( str, "mode: %s", mode == SEQUENCE ? "sequence" : "all on" );
+  u8g2.drawStr( 0, 20, str );
+
+  if ( mode == SEQUENCE ) {
+    sprintf( str, "t-step: %d.%01d%01ds", (int)speed, (int)(speed * 10) % 10, (int)(speed * 100) % 10 );
+    u8g2.drawStr( 0, 36, str );
+    
+    uint8_t s = currentState->pattern;
+    sprintf( str, "%c%c%c%c%c%c", s & 0x20 ? '~' : '_', s & 0x10 ? '~' : '_', s & 0x08 ? '~' : '_', s & 0x04 ? '~' : '_', s & 0x02 ? '~' : '_', s & 0x01 ? '~' : '_' );
+    u8g2.drawStr( 0, 52, str );
+  }
+  u8g2.sendBuffer(); 
 }
 
 void setup() {
@@ -104,8 +136,15 @@ void setup() {
     pinMode( NEON_PINS[i], OUTPUT );
   }
 
-  currentState = nextState( NULL );
-  display( currentState );
+//  EEPROM.put( SPEED_EEPROM_ADDRESS, 1.0f );
+
+  EEPROM.get( SPEED_EEPROM_ADDRESS, speed );
+  EEPROM.get( MODE_EEPROM_ADDRESS, mode );
+
+  if ( mode == SEQUENCE ) {
+    currentState = nextState( NULL );
+    display( currentState );
+  }
 
   u8g2.begin();
   u8g2.setFont( u8g2_font_9x15_mr );
@@ -114,17 +153,26 @@ void setup() {
 
   pinMode( SPEED_PIN, INPUT );
   pinMode( MODE_PIN, INPUT_PULLUP );
+  
+  drawDisplay();
 }
 
 void loop() {
 
   bool changed = false;
+  float timeNow = millis() * 0.001f;
+
+  bool speedChanged = readSpeed();
+  bool modeChanged = readModeButton();
+
+  if ( modeChanged && mode == SEQUENCE ) {
+    currentState = nextState( NULL );
+    display( currentState );
+  }
   
   switch ( mode ) {
     case SEQUENCE:
     {
-      float timeNow = millis() * 0.001f;
-
       if ( timeNow - lastChangeTime >= currentState->duration * speed ) {
         currentState = nextState( currentState );
         display( currentState );
@@ -140,22 +188,15 @@ void loop() {
       break;
   }
 
-  if ( changed || readSpeed() || readModeButton() ) {
-    u8g2.clearBuffer();
-    char str[25];
-    sprintf( str, "t-step: %d.%01ds", (int)speed, (int)(speed * 10) % 10 );
-    u8g2.drawStr( 0,20, str );
 
-    sprintf( str, "mode: %s", mode == SEQUENCE ? "sequence" : "all on" );
-    u8g2.drawStr( 0,36, str );
-
-    // _~_
-    uint8_t s = currentState->pattern;
-    sprintf( str, "%c%c%c%c%c%c", s & 0x20 ? '~' : '_', s & 0x10 ? '~' : '_', s & 0x08 ? '~' : '_', s & 0x04 ? '~' : '_', s & 0x02 ? '~' : '_', s & 0x01 ? '~' : '_' );
-    u8g2.drawStr( 0, 52, str );
-
-    u8g2.sendBuffer(); 
+  static float lastDisplayUpdate = 0.f;
+  if ( timeNow - lastDisplayUpdate > 0.2f ) {
+    if ( changed || speedChanged || modeChanged ) {
+      drawDisplay();
+      lastDisplayUpdate = timeNow;
+    }
   }
 
-  //delay(50);
+//  Serial.println( speed );
+//  delay( 25 );
 }
