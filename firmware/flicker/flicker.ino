@@ -16,7 +16,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 RotaryEncoder encoder( 10, 16 );
 
 #define NUM_NEONS 6
-const uint8_t NEON_PINS[NUM_NEONS] = { 4, 5, 6, 7, 8, 9 };
+const uint8_t NEON_PINS[NUM_NEONS] = { 7, 6, 5, 4, 8, 9 };
 
 typedef struct {
   uint8_t pattern;
@@ -25,13 +25,13 @@ typedef struct {
 
 typedef State Sequence[SEQUENCE_MAX_LENGTH];
 
-#define NUM_SEQUENCES 5
+#define NUM_SEQUENCES 1
 const Sequence SEQUENCES[NUM_SEQUENCES] = {
-/* asdf */ { { 1, 1.0f }, { 2, 1.0f }, { 3, 1.0f }, { END_PATTERN, 0.f }},
-/* tw */ { { 10, 2.0f }, { 11, 3.0f }, { 12, 3.5f }, { END_PATTERN, 0.f }},
+///* asdf */ { { 1, 1.0f }, { 2, 1.0f }, { 3, 1.0f }, { END_PATTERN, 0.f }},
+///* tw */ { { 10, 2.0f }, { 11, 3.0f }, { 12, 3.5f }, { END_PATTERN, 0.f }},
 /* seq */ { { 1, 1.0f }, { 2, 1.0f }, { 4, 1.0f }, { 8, 1.0f }, { 16, 1.0f }, { 32, 1.0f }, { END_PATTERN, 0.f }},
-/* ttt */ { { 1, 1.0f }, { 2, 1.0f }, { 4, 1.0f }, { END_PATTERN, 0.f }},
-/* t2 */ { { 1, 1.0f }, { 58, 1.0f }, { 1, 1.0f }, { END_PATTERN, 0.f }},
+///* ttt */ { { 1, 1.0f }, { 2, 1.0f }, { 4, 1.0f }, { END_PATTERN, 0.f }},
+///* t2 */ { { 1, 1.0f }, { 58, 1.0f }, { 1, 1.0f }, { END_PATTERN, 0.f }},
 };
 
 
@@ -44,7 +44,7 @@ void display( const State *state ) {
 
 void turnOnAll() {
   for ( uint8_t i = 0; i < NUM_NEONS; i++ ) {
-     digitalWrite( NEON_PINS[i], 0 );
+     digitalWrite( NEON_PINS[i], HIGH );
   }
 }
 
